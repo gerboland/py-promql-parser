@@ -106,6 +106,15 @@ impl From<TokenType> for PyTokenType {
     }
 }
 
+#[pymethods]
+impl PyTokenType {
+    #[getter]
+    pub fn name(&self) -> String {
+        let token_name: &str = parser::token::token_display(self.r#type.id());
+        return token_name.to_string();
+    }
+}
+
 #[pyclass(name = "AggModifier", module = "promql_parser")]
 #[derive(Debug, Clone)]
 pub struct PyAggModifier {
