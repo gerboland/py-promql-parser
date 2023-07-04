@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::time::SystemTime;
 
 use chrono::Duration;
 use promql_parser::label::Labels;
@@ -175,6 +176,12 @@ impl PyBinaryExpr {
         } = expr;
         let py_modifier = match modifier {
             Some(modifier) => Some(PyBinModifier {
+                labels: match modifier.card {
+                    VectorMatchCardinality::ManyToOne(_) => modifier.card.labels().cloned(),
+                    VectorMatchCardinality::OneToMany(_) => modifier.card.labels().cloned(),
+                    VectorMatchCardinality::OneToOne => None,
+                    VectorMatchCardinality::ManyToMany => None,
+                },
                 card: modifier.card.into(),
                 matching: match modifier.matching {
                     Some(LabelModifier::Include(labels)) => Some(PyLabelModifier {
@@ -208,6 +215,8 @@ pub struct PyBinModifier {
     card: PyVectorMatchCardinality,
     #[pyo3(get)]
     matching: Option<PyLabelModifier>,
+    #[pyo3(get)]
+    labels: Option<HashSet<String>>,
     #[pyo3(get)]
     return_bool: bool,
 }
@@ -312,7 +321,16 @@ impl PySubqueryExpr {
                         AtModifier::End => PyAtModifierType::End,
                         AtModifier::At(_) => PyAtModifierType::At,
                     };
-                    Some(PyAtModifier { r#type: typ })
+                    let mut time: Option<u64> = None;
+
+                    if let AtModifier::At(t) = at {
+                        match t.duration_since(SystemTime::UNIX_EPOCH) {
+                            Ok(n) => time = Some(n.as_secs()),
+                            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+                        }
+                    }
+
+                    Some(PyAtModifier { r#type: typ, time })
                 }
                 None => None,
             },
@@ -335,7 +353,8 @@ impl PySubqueryExpr {
 pub struct PyAtModifier {
     #[pyo3(get)]
     r#type: PyAtModifierType,
-    // at: Option<SystemTime>,
+    #[pyo3(get)]
+    time: Option<u64>,
 }
 
 #[pyclass(name = "AtModifierType", module = "promql_parser")]
@@ -482,7 +501,16 @@ impl PyVectorSelector {
                         AtModifier::End => PyAtModifierType::End,
                         AtModifier::At(_) => PyAtModifierType::At,
                     };
-                    Some(PyAtModifier { r#type: typ })
+                    let mut time: Option<u64> = None;
+
+                    if let AtModifier::At(t) = at {
+                        match t.duration_since(SystemTime::UNIX_EPOCH) {
+                            Ok(n) => time = Some(n.as_secs()),
+                            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+                        }
+                    }
+
+                    Some(PyAtModifier { r#type: typ, time })
                 }
                 None => None,
             },
